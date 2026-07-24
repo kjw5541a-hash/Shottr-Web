@@ -1,0 +1,17 @@
+{
+  "name": "Shottr Web",
+  "short_name": "Shottr",
+  "description": "개인 전용 초고속 스크롤 캡처 & 주석 편집기",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0D0E11",
+  "theme_color": "#0D0E11",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/color/512/screenshot.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

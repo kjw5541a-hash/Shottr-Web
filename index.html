@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0D0E11">
+  
+  <title>Shottr Web - PWA Screenshot Editor</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- External OCR engine (Tesseract.js CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- Top Glass Header -->
+    <header class="top-header glass-panel">
+      <div class="header-left">
+        <h1 class="brand-logo">Shottr<span>Web</span></h1>
+      </div>
+      
+      <div class="header-actions">
+        <label for="imageLoader" class="btn btn-secondary icon-btn" title="이미지 업로드">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span class="btn-text">사진 열기</span>
+        </label>
+        <input type="file" id="imageLoader" accept="image/*" multiple style="display:none;">
+
+        <button id="stitchBtn" class="btn btn-primary" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+          </svg>
+          <span>긴 화면 스티칭</span>
+        </button>
+
+        <button id="exportBtn" class="btn btn-accent icon-btn" style="display:none;" title="내보내기/저장">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          <span class="btn-text">저장</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Stitching Offset Adjustment Bar (Hidden by default) -->
+    <div id="stitchAdjustBar" class="stitch-adjust-bar glass-panel" style="display: none;">
+      <span class="adjust-label">겹침 오프셋 미세조정:</span>
+      <input type="range" id="overlapSlider" min="0" max="500" value="100">
+      <span id="overlapValue">100px</span>
+      <button id="applyStitchBtn" class="btn btn-small btn-success">완료</button>
+    </div>
+
+    <!-- Main Workspace Area -->
+    <main class="workspace-area">
+      <!-- Empty State Landing -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-card glass-card">
+          <div class="empty-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="url(#accentGrad)" stroke-width="1.5">
+              <defs>
+                <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#3B82F6"/>
+                  <stop offset="100%" stop-color="#10B981"/>
+                </linearGradient>
+              </defs>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <h2>Shottr Web 에 오신 것을 환영합니다</h2>
+          <p>아이폰 스크린샷 1장 또는 <b>연속 스크린샷 여러 장</b>을 올리시면<br>자동으로 긴 화면 합성 및 주석 편집이 시작됩니다.</p>
+
+          <div class="upload-dropzone" id="dropZone">
+            <label for="imageLoader" class="btn btn-hero">
+              사진 선택 및 불러오기
+            </label>
+            <span class="drop-hint">또는 이미지를 이곳에 드래그 / 클립보드 붙여넣기(Ctrl+V)</span>
+          </div>
+
+          <div class="shortcut-tip glass-pill">
+            💡 <b>팁:</b> iOS 단축어로 캡처 즉시 웹앱으로 이미지를 쏠 수 있습니다.
+          </div>
+        </div>
+      </div>
+
+      <!-- Canvas Container -->
+      <div id="canvasViewport" class="canvas-viewport" style="display: none;">
+        <div id="canvasWrapper" class="canvas-wrapper">
+          <canvas id="mainCanvas"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- Floating Bottom Editing Toolbar (Visible when canvas loaded) -->
+    <nav id="toolbar" class="bottom-toolbar glass-panel" style="display: none;">
+      <div class="tool-group">
+        <button class="tool-btn active" data-tool="select" title="선택/이동">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3l7 18 3-7 7-3L3 3z"/>
+          </svg>
+        </button>
+        <button class="tool-btn" data-tool="arrow" title="화살표">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="19" x2="19" y2="5"/>
+            <polyline points="12 5 19 5 19 12"/>
+          </svg>
+        </button>
+        <button class="tool-btn" data-tool="step" title="단계 마커 (1,2,3)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v8M12 8l-2 2"/>
+          </svg>
+        </button>
+        <button class="tool-btn" data-tool="mosaic" title="모자이크 가리기">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+          </svg>
+        </button>
+        <button class="tool-btn" data-tool="text" title="텍스트 입력">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="4 7 4 4 20 4 20 7"/>
+            <line x1="9" y1="20" x2="15" y2="20"/>
+            <line x1="12" y1="4" x2="12" y2="20"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="tool-divider"></div>
+
+      <div class="tool-group">
+        <button class="tool-btn" data-tool="ruler" title="픽셀 거리 측정">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 12h20M6 12v-3M10 12v-2M14 12v-3M18 12v-2"/>
+          </svg>
+        </button>
+        <button class="tool-btn" data-tool="colorpicker" title="컬러 피커">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a10 10 0 1 0 10 10c0-1.5-.5-2-1.5-2H18a2 2 0 0 1-2-2v-1.5c0-1-.5-1.5-1.5-1.5h-1"/>
+            <circle cx="7.5" cy="7.5" r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="6" r="1.5" fill="currentColor"/>
+            <circle cx="16.5" cy="7.5" r="1.5" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="tool-btn" data-tool="ocr" id="ocrBtn" title="텍스트 추출 (OCR)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3"/>
+            <line x1="9" y1="12" x2="15" y2="12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="tool-divider"></div>
+
+      <!-- Color Palette Quick Pick -->
+      <div class="color-palette">
+        <input type="color" id="colorPickerInput" value="#3B82F6" class="color-swatch-input">
+        <button class="tool-btn action-btn danger" id="undoBtn" title="실행 취소">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 7v6h6"/>
+            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Color Picker Value Toast / OCR Result Modal -->
+    <div id="toast" class="toast-notification glass-panel" style="display: none;"></div>
+
+    <div id="ocrModal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card glass-card">
+        <div class="modal-header">
+          <h3>추출된 텍스트 (OCR)</h3>
+          <button id="closeOcrModal" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <textarea id="ocrResultText" placeholder="인식 중..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button id="copyOcrTextBtn" class="btn btn-primary">클립보드 복사</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="js/stitching.js"></script>
+  <script src="js/canvas-editor.js"></script>
+  <script src="js/ocr.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
