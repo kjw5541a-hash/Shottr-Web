@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0D0E11">
   
-  <title>Shottr Web - PWA Screenshot Editor</title>
+  <title>Shottr Web - PWA Screenshot & Video Stitcher</title>
   
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,41 +29,39 @@
       </div>
       
       <div class="header-actions">
-        <label for="imageLoader" class="btn btn-secondary icon-btn" title="이미지 업로드">
+        <!-- 1. 메인 직관적인 불러오기 버튼 -->
+        <label for="imageLoader" class="btn btn-primary main-action-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
           </svg>
-          <span class="btn-text">사진 열기</span>
+          <span>📷 사진/동영상 파일 열기</span>
         </label>
-        <input type="file" id="imageLoader" accept="image/*" multiple style="display:none;">
 
-        <button id="stitchBtn" class="btn btn-primary" style="display:none;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-            <line x1="12" y1="8" x2="12" y2="16"/>
-          </svg>
-          <span>긴 화면 스티칭</span>
-        </button>
+        <input type="file" id="imageLoader" accept="image/*,video/*" multiple style="display:none;">
 
-        <button id="exportBtn" class="btn btn-accent icon-btn" style="display:none;" title="내보내기/저장">
+        <!-- 3. 메인 저장 버튼 -->
+        <button id="exportBtn" class="btn btn-accent main-action-btn" style="display:none;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
             <polyline points="17 21 17 13 7 13 7 21"/>
             <polyline points="7 3 7 8 15 8"/>
           </svg>
-          <span class="btn-text">저장</span>
+          <span>💾 사진 앨범 저장</span>
         </button>
       </div>
     </header>
 
-    <!-- Stitching Offset Adjustment Bar (Hidden by default) -->
+    <!-- Stitching Bar & Controls -->
     <div id="stitchAdjustBar" class="stitch-adjust-bar glass-panel" style="display: none;">
-      <span class="adjust-label">겹침 오프셋 미세조정:</span>
-      <input type="range" id="overlapSlider" min="0" max="500" value="100">
-      <span id="overlapValue">100px</span>
-      <button id="applyStitchBtn" class="btn btn-small btn-success">완료</button>
+      <div class="adjust-info">
+        <span class="adjust-label">🧩 겹침 오프셋 미세조정:</span>
+        <input type="range" id="overlapSlider" min="0" max="400" value="80">
+        <span id="overlapValue">80px</span>
+      </div>
+      <button id="stitchBtn" class="btn btn-small btn-primary">
+        <span>스티칭 재합성</span>
+      </button>
     </div>
 
     <!-- Main Workspace Area -->
@@ -84,18 +82,25 @@
               <polyline points="21 15 16 10 5 21"/>
             </svg>
           </div>
-          <h2>Shottr Web 에 오신 것을 환영합니다</h2>
-          <p>아이폰 스크린샷 1장 또는 <b>연속 스크린샷 여러 장</b>을 올리시면<br>자동으로 긴 화면 합성 및 주석 편집이 시작됩니다.</p>
+          <h2>Shottr Web 스크롤 캡처 & 편집기</h2>
+          <p>아래 방법 중 하나를 선택해 보세요:</p>
+
+          <div class="feature-mode-box">
+            <div class="mode-item glass-pill-box">
+              <span class="mode-badge">✨ 획기적 추천</span>
+              <p><b>1. 아이폰 화면 녹화 동영상 (.mov)</b><br>화면 녹화를 켜고 쓱 스크롤한 영상을 올리면 1초 만에 자동 긴 이미지 합성!</p>
+            </div>
+
+            <div class="mode-item glass-pill-box">
+              <span class="mode-badge">📷 스크린샷 캡처</span>
+              <p><b>2. 연속 스크린샷 이미지 여러 장</b><br>사진 앨범에서 찍은 스크린샷 2~5장을 선택해 바로 올리기</p>
+            </div>
+          </div>
 
           <div class="upload-dropzone" id="dropZone">
             <label for="imageLoader" class="btn btn-hero">
-              사진 선택 및 불러오기
+              📷 사진 / 동영상 선택하기
             </label>
-            <span class="drop-hint">또는 이미지를 이곳에 드래그 / 클립보드 붙여넣기(Ctrl+V)</span>
-          </div>
-
-          <div class="shortcut-tip glass-pill">
-            💡 <b>팁:</b> iOS 단축어로 캡처 즉시 웹앱으로 이미지를 쏠 수 있습니다.
           </div>
         </div>
       </div>
@@ -108,7 +113,10 @@
       </div>
     </main>
 
-    <!-- Floating Bottom Editing Toolbar (Visible when canvas loaded) -->
+    <!-- Hidden Video Player Element for Frame Extraction -->
+    <video id="hiddenVideo" style="display:none;" playsinline muted></video>
+
+    <!-- Floating Bottom Editing Toolbar -->
     <nav id="toolbar" class="bottom-toolbar glass-panel" style="display: none;">
       <div class="tool-group">
         <button class="tool-btn active" data-tool="select" title="선택/이동">
@@ -169,7 +177,6 @@
 
       <div class="tool-divider"></div>
 
-      <!-- Color Palette Quick Pick -->
       <div class="color-palette">
         <input type="color" id="colorPickerInput" value="#3B82F6" class="color-swatch-input">
         <button class="tool-btn action-btn danger" id="undoBtn" title="실행 취소">
@@ -181,7 +188,7 @@
       </div>
     </nav>
 
-    <!-- Color Picker Value Toast / OCR Result Modal -->
+    <!-- Toast & Modal -->
     <div id="toast" class="toast-notification glass-panel" style="display: none;"></div>
 
     <div id="ocrModal" class="modal-backdrop" style="display: none;">

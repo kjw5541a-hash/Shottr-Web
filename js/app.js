@@ -1,17 +1,18 @@
 /**
  * Shottr Web - Main Coordinator Application (js/app.js)
+ * 동영상(.mov/.mp4) 프레임 추출 지원 및 스티칭 결과 직관적 렌더링
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements
   const imageLoader = document.getElementById('imageLoader');
+  const hiddenVideo = document.getElementById('hiddenVideo');
   const stitchBtn = document.getElementById('stitchBtn');
   const exportBtn = document.getElementById('exportBtn');
   const emptyState = document.getElementById('emptyState');
   const canvasViewport = document.getElementById('canvasViewport');
   const canvas = document.getElementById('mainCanvas');
   const toolbar = document.getElementById('toolbar');
-  const dropZone = document.getElementById('dropZone');
   const colorPickerInput = document.getElementById('colorPickerInput');
   const undoBtn = document.getElementById('undoBtn');
   const toast = document.getElementById('toast');
@@ -20,10 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const stitchAdjustBar = document.getElementById('stitchAdjustBar');
   const overlapSlider = document.getElementById('overlapSlider');
   const overlapValue = document.getElementById('overlapValue');
-  const applyStitchBtn = document.getElementById('applyStitchBtn');
 
   // OCR Modal
-  const ocrBtn = document.getElementById('ocrBtn');
   const ocrModal = document.getElementById('ocrModal');
   const closeOcrModal = document.getElementById('closeOcrModal');
   const ocrResultText = document.getElementById('ocrResultText');
@@ -33,8 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const editor = new CanvasEditor(canvas);
   let loadedImageElements = [];
 
-  // Toast Notification Utility
-  window.showToast = (msg, duration = 3000) => {
+  // Toast Helper
+  window.showToast = (msg, duration = 3500) => {
     toast.textContent = msg;
     toast.style.display = 'block';
     setTimeout(() => {
@@ -42,42 +41,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }, duration);
   };
 
-  // 1. File Upload & Processing
-  imageLoader.addEventListener('change', handleImageUpload);
+  // 1. File Upload Handler (Image & Video)
+  imageLoader.addEventListener('change', handleFileUpload);
 
-  function handleImageUpload(e) {
+  async function handleFileUpload(e) {
     const files = Array.from(e.target.files);
     if (!files || files.length === 0) return;
-    loadFiles(files);
+
+    const firstFile = files[0];
+
+    // 🎬 A. 동영상 파일(.mov, .mp4)이 업로드된 경우
+    if (firstFile.type.startsWith('video/')) {
+      showToast('🎬 동영상에서 캡처 프레임을 추출하고 있습니다...');
+      try {
+        const extractedFrames = await StitchEngine.extractFramesFromVideo(firstFile, hiddenVideo);
+        if (extractedFrames && extractedFrames.length > 0) {
+          loadedImageElements = extractedFrames;
+          showToast(`✅ ${extractedFrames.length}개 프레임 추출 완료! 자동 스티칭 중...`);
+          onImagesReady();
+        } else {
+          showToast('❌ 동영상에서 프레임을 추출하지 못했습니다.');
+        }
+      } catch (err) {
+        showToast('❌ 동영상 처리 중 오류가 발생했습니다.');
+        console.error(err);
+      }
+      return;
+    }
+
+    // 📷 B. 이미지 파일 여러 장 또는 1장이 업로드된 경우
+    loadImages(files);
   }
 
-  // Drag & Drop
-  window.addEventListener('dragover', (e) => e.preventDefault());
-  window.addEventListener('drop', (e) => {
-    e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      loadFiles(Array.from(e.dataTransfer.files));
-    }
-  });
-
-  // Clipboard Paste (Ctrl+V or Cmd+V)
-  window.addEventListener('paste', (e) => {
-    const items = e.clipboardData.items;
-    const imageFiles = [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        imageFiles.push(items[i].getAsFile());
-      }
-    }
-    if (imageFiles.length > 0) {
-      loadFiles(imageFiles);
-    }
-  });
-
-  /**
-   * 선택된 파일들 HTMLImageElement로 변환 로드
-   */
-  function loadFiles(files) {
+  function loadImages(files) {
     loadedImageElements = [];
     let loadedCount = 0;
 
@@ -88,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
         img.onload = () => {
           loadedImageElements[index] = img;
           loadedCount++;
-
           if (loadedCount === files.length) {
             onImagesReady();
           }
@@ -106,43 +101,38 @@ document.addEventListener('DOMContentLoaded', () => {
     exportBtn.style.display = 'inline-flex';
 
     if (loadedImageElements.length > 1) {
-      // 2장 이상인 경우 스티칭 버튼 표시 및 자동 스티칭 실행
-      stitchBtn.style.display = 'inline-flex';
       stitchAdjustBar.style.display = 'flex';
       performStitch();
     } else {
-      // 1장인 경우 바로 캔버스에 로드
-      stitchBtn.style.display = 'none';
       stitchAdjustBar.style.display = 'none';
       editor.loadImage(StitchEngine.stitchImages(loadedImageElements));
     }
   }
 
-  // 스티칭 실행
   function performStitch(manualOverlap = null) {
-    showToast('🧩 이미지 자동 이어붙이는 중...');
+    showToast('🧩 스티칭 합성 렌더링 중...');
     setTimeout(() => {
       const stitchedCanvas = StitchEngine.stitchImages(loadedImageElements, manualOverlap);
       if (stitchedCanvas) {
         editor.loadImage(stitchedCanvas);
-        showToast('✅ 스티칭 합성 완료!');
+        showToast('🎉 스티칭 합성 완벽 성공! 주석 편집을 시작해 보세요.');
+      } else {
+        showToast('❌ 스티칭 합성 실패');
       }
-    }, 50);
+    }, 60);
   }
 
-  // 스티칭 슬라이더 변경 이벤트
+  // Adjust Bar
   overlapSlider.addEventListener('input', (e) => {
     overlapValue.textContent = `${e.target.value}px`;
   });
 
-  applyStitchBtn.addEventListener('click', () => {
+  stitchBtn.addEventListener('click', () => {
     const val = parseInt(overlapSlider.value, 10);
     performStitch(val);
   });
 
-  stitchBtn.addEventListener('click', () => performStitch());
-
-  // 2. Toolbar Tools Switching
+  // Tools Switching
   const toolButtons = document.querySelectorAll('.tool-btn[data-tool]');
   toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -158,21 +148,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Color Swatch Update
   colorPickerInput.addEventListener('input', (e) => {
     editor.currentColor = e.target.value;
   });
 
-  // Undo
   undoBtn.addEventListener('click', () => {
     editor.undo();
   });
 
-  // 3. OCR Processing
+  // OCR
   async function runOcr() {
-    showToast('🔍 텍스트 인식(OCR) 진행 중...');
-    const extractedText = await OcrEngine.recognize(canvas);
-    ocrResultText.value = extractedText;
+    showToast('🔍 텍스트 인식(OCR) 실행 중...');
+    const text = await OcrEngine.recognize(canvas);
+    ocrResultText.value = text;
     ocrModal.style.display = 'flex';
   }
 
@@ -182,37 +170,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   copyOcrTextBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(ocrResultText.value).then(() => {
-      showToast('📋 텍스트가 클립보드에 복사되었습니다!');
+      showToast('📋 클립보드에 텍스트가 복사되었습니다!');
       ocrModal.style.display = 'none';
     });
   });
 
-  // 4. Export & Save (iOS Web Share / Image Download)
+  // Export / Save
   exportBtn.addEventListener('click', () => {
     canvas.toBlob((blob) => {
       if (!blob) return;
 
-      // iOS Native Share Sheet 지원 (사진 앱에 바로 저장 가능)
       if (navigator.canShare && navigator.canShare({ files: [new File([blob], 'shottr.png', { type: 'image/png' })] })) {
         const file = new File([blob], `shottr_${Date.now()}.png`, { type: 'image/png' });
         navigator.share({
           files: [file],
-          title: 'Shottr Web 캡처',
-          text: 'Shottr Web으로 편집된 이미지입니다.'
+          title: 'Shottr Web 합성 이미지',
+          text: 'Shottr Web으로 생성된 긴 화면 캡처 이미지입니다.'
         }).catch(() => {});
       } else {
-        // 일반 브라우저 다운로드
         const link = document.createElement('a');
         link.download = `shottr_${Date.now()}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-        showToast('💾 이미지가 다운로드되었습니다!');
+        showToast('💾 사진 앨범에 다운로드 되었습니다!');
       }
     }, 'image/png');
   });
-
-  // Service Worker Registration for PWA
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Reg Failed:', err));
-  }
 });
