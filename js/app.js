@@ -1,6 +1,7 @@
 /**
  * Shottr Web - Main Coordinator Application (js/app.js)
- * 첨부 사진 순서 확인/조정 패널 & 스티칭 결과 렌더링 지원
+ * 1) 파일 첨부 시 원본 그대로 위에서 아래로 붙여서 먼저 시각화 (변환금지)
+ * 2) 사용자가 확인 후 [작업 진행] 버튼 클릭 시 스마트 겹침 스티칭 실행
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,28 +17,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const undoBtn = document.getElementById('undoBtn');
   const toast = document.getElementById('toast');
 
+  // Action Control Bar
+  const actionControlBar = document.getElementById('actionControlBar');
+  const openManagerBtn = document.getElementById('openManagerBtn');
+  const runSmartStitchBtn = document.getElementById('runSmartStitchBtn');
+  const sliderGroup = document.getElementById('sliderGroup');
+  const overlapSlider = document.getElementById('overlapSlider');
+  const overlapValue = document.getElementById('overlapValue');
+
   // Image Manager Panel Elements
   const imageManagerPanel = document.getElementById('imageManagerPanel');
   const thumbnailList = document.getElementById('thumbnailList');
   const photoCountText = document.getElementById('photoCountText');
-  const startStitchActionBtn = document.getElementById('startStitchActionBtn');
-  const backToManagerBtn = document.getElementById('backToManagerBtn');
-
-  // Stitch Adjust UI
-  const stitchAdjustBar = document.getElementById('stitchAdjustBar');
-  const overlapSlider = document.getElementById('overlapSlider');
-  const overlapValue = document.getElementById('overlapValue');
-  const stitchBtn = document.getElementById('stitchBtn');
-
-  // OCR Modal
-  const ocrModal = document.getElementById('ocrModal');
-  const closeOcrModal = document.getElementById('closeOcrModal');
-  const ocrResultText = document.getElementById('ocrResultText');
-  const copyOcrTextBtn = document.getElementById('copyOcrTextBtn');
+  const confirmOrderBtn = document.getElementById('confirmOrderBtn');
 
   // Editor State
   const editor = new CanvasEditor(canvas);
   let loadedImageElements = [];
+  let isSmartStitched = false; // 현재 겹침 스티칭 완료 여부
 
   // Toast Helper
   window.showToast = (msg, duration = 3500) => {
@@ -48,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, duration);
   };
 
-  // 1. File Upload Handler (Image & Video)
+  // 1. File Upload Handler
   imageLoader.addEventListener('change', handleFileUpload);
 
   async function handleFileUpload(e) {
@@ -57,26 +54,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const firstFile = files[0];
 
-    // 🎬 A. 동영상 파일(.mov, .mp4)이 업로드된 경우
+    // 동영상 파일 처리
     if (firstFile.type.startsWith('video/')) {
       showToast('🎬 동영상에서 프레임을 추출하고 있습니다...');
       try {
         const extractedFrames = await StitchEngine.extractFramesFromVideo(firstFile, hiddenVideo);
         if (extractedFrames && extractedFrames.length > 0) {
           loadedImageElements = [...loadedImageElements, ...extractedFrames];
-          showToast(`✅ ${extractedFrames.length}개 프레임 추출 완료! 순서를 확인해 주세요.`);
-          showImageManager();
+          showToast(`✅ ${extractedFrames.length}개 프레임 추출 완료! 원본 이미지를 나열합니다.`);
+          renderRawPreview();
         } else {
-          showToast('❌ 동영상에서 프레임을 추출하지 못했습니다.');
+          showToast('❌ 동영상 프레임 추출 실패');
         }
       } catch (err) {
-        showToast('❌ 동영상 처리 중 오류가 발생했습니다.');
-        console.error(err);
+        showToast('❌ 동영상 처리 오류');
       }
       return;
     }
 
-    // 📷 B. 이미지 파일 로드
+    // 이미지 파일 로드
     loadImages(files);
   }
 
@@ -93,7 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
           loadedCount++;
           if (loadedCount === files.length) {
             loadedImageElements = [...loadedImageElements, ...newImages];
-            showImageManager();
+            // 💡 중요: 먼저 변환하지 않고 원본 그대로 나열해서 화면에 시각화!
+            renderRawPreview();
           }
         };
         img.src = event.target.result;
@@ -102,13 +99,67 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 2. Image Preview & Reorder Manager Panel
+  /**
+   * [1단계] 첨부된 원본 사진들을 변환 없이 위에서 아래로 그대로 붙여서 캔버스에 렌더링
+   */
+  function renderRawPreview() {
+    if (loadedImageElements.length === 0) return;
+
+    isSmartStitched = false;
+    emptyState.style.display = 'none';
+    imageManagerPanel.style.display = 'none';
+
+    canvasViewport.style.display = 'flex';
+    actionControlBar.style.display = 'flex';
+    toolbar.style.display = 'flex';
+    exportBtn.style.display = 'inline-flex';
+
+    // 슬라이더 조절바 숨김 (스마트 스티칭 전)
+    sliderGroup.style.display = 'none';
+    runSmartStitchBtn.style.display = 'inline-flex';
+
+    // 원본 그대로 위에서 아래로 나열한 캔버스 로드
+    const rawCanvas = StitchEngine.concatImagesRaw(loadedImageElements);
+    editor.loadImage(rawCanvas);
+
+    showToast('👁️ 첨부한 원본 사진들을 위에서 아래로 붙였습니다. 확인 후 [작업 진행]을 누르세요.');
+  }
+
+  /**
+   * [2단계] 사용자가 확인 후 [🚀 겹침 자동 스티칭 작업 진행] 버튼 클릭 시 비로소 변환 및 스티칭 실행!
+   */
+  runSmartStitchBtn.addEventListener('click', () => {
+    performSmartStitch();
+  });
+
+  function performSmartStitch(manualOverlap = null) {
+    showToast('🧩 겹치는 영역을 자동 탐지하여 스티칭 중...');
+    
+    setTimeout(() => {
+      const stitchedCanvas = StitchEngine.stitchImages(loadedImageElements, manualOverlap);
+      if (stitchedCanvas) {
+        editor.loadImage(stitchedCanvas);
+        isSmartStitched = true;
+        
+        // 미세조정 슬라이더 표시
+        sliderGroup.style.display = 'flex';
+        showToast('🎉 스티칭 작업 완료! 주석 편집 및 저장이 가능합니다.');
+      } else {
+        showToast('❌ 스티칭 작업 실패');
+      }
+    }, 60);
+  }
+
+  // 3. Image Manager (순서 카드로 보기 및 조절)
+  openManagerBtn.addEventListener('click', () => {
+    showImageManager();
+  });
+
   function showImageManager() {
     emptyState.style.display = 'none';
     canvasViewport.style.display = 'none';
+    actionControlBar.style.display = 'none';
     toolbar.style.display = 'none';
-    stitchAdjustBar.style.display = 'none';
-    exportBtn.style.display = 'none';
 
     imageManagerPanel.style.display = 'flex';
     renderThumbnailList();
@@ -130,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       card.innerHTML = `
         <div class="thumb-order-badge">${idx + 1}</div>
-        <img class="thumb-preview-img" src="${img.src}" alt="Screenshot ${idx + 1}">
+        <img class="thumb-preview-img" src="${img.src}" alt="Photo ${idx + 1}">
         <div class="thumb-info">
           <div class="thumb-title">캡처 사진 #${idx + 1}</div>
           <div class="thumb-sub">${img.naturalWidth || img.width} x ${img.naturalHeight || img.height}px</div>
@@ -142,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
-      // Event listeners for reordering & deletion
       const btnUp = card.querySelector('.btn-up');
       const btnDown = card.querySelector('.btn-down');
       const btnDel = card.querySelector('.btn-del');
@@ -174,51 +224,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 3. Start Stitching & Render Result on Canvas
-  startStitchActionBtn.addEventListener('click', () => {
-    if (loadedImageElements.length === 0) return;
-    performStitch();
+  confirmOrderBtn.addEventListener('click', () => {
+    renderRawPreview();
   });
 
-  backToManagerBtn.addEventListener('click', () => {
-    showImageManager();
-  });
-
-  function performStitch(manualOverlap = null) {
-    showToast('🧩 스티칭 합성 렌더링 중...');
-    
-    // UI 전환
-    imageManagerPanel.style.display = 'none';
-    emptyState.style.display = 'none';
-    canvasViewport.style.display = 'flex';
-    toolbar.style.display = 'flex';
-    exportBtn.style.display = 'inline-flex';
-
-    if (loadedImageElements.length > 1) {
-      stitchAdjustBar.style.display = 'flex';
-    } else {
-      stitchAdjustBar.style.display = 'none';
-    }
-
-    setTimeout(() => {
-      const stitchedCanvas = StitchEngine.stitchImages(loadedImageElements, manualOverlap);
-      if (stitchedCanvas) {
-        editor.loadImage(stitchedCanvas);
-        showToast('🎉 스티칭 완벽 성공! 합성 결과를 확인하고 주석을 편집해 보세요.');
-      } else {
-        showToast('❌ 스티칭 합성 실패');
-      }
-    }, 60);
-  }
-
-  // Adjust Bar
+  // Slider Adjust
   overlapSlider.addEventListener('input', (e) => {
     overlapValue.textContent = `${e.target.value}px`;
-  });
-
-  stitchBtn.addEventListener('click', () => {
-    const val = parseInt(overlapSlider.value, 10);
-    performStitch(val);
+    if (isSmartStitched) {
+      performSmartStitch(parseInt(e.target.value, 10));
+    }
   });
 
   // Tools Switching
@@ -273,15 +288,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = new File([blob], `shottr_${Date.now()}.png`, { type: 'image/png' });
         navigator.share({
           files: [file],
-          title: 'Shottr Web 합성 이미지',
-          text: 'Shottr Web으로 생성된 긴 화면 캡처 이미지입니다.'
+          title: 'Shottr Web 이미지',
+          text: 'Shottr Web으로 조합된 스크린샷 이미지입니다.'
         }).catch(() => {});
       } else {
         const link = document.createElement('a');
         link.download = `shottr_${Date.now()}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-        showToast('💾 사진 앨범에 다운로드 되었습니다!');
+        showToast('💾 사진 앨범에 저장되었습니다!');
       }
     }, 'image/png');
   });

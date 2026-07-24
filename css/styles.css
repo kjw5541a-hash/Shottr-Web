@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Shottr Web (iOS PWA) - Modern Dark Glassmorphism Stylesheet (Updated UX)
+   Shottr Web (iOS PWA) - Modern Dark Glassmorphism Stylesheet (Updated Workflow)
    ========================================================================== */
 
 :root {
@@ -150,24 +150,32 @@ body, html {
   border-radius: 8px;
 }
 
-/* Stitch Adjust Bar */
-.stitch-adjust-bar {
+/* Top Action Control Bar */
+.action-control-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
   z-index: 40;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
+  gap: 10px;
+}
+
+.run-stitch-btn {
+  background: linear-gradient(135deg, #8B5CF6, var(--accent-blue));
+  color: #FFF;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
 }
 
 .adjust-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.stitch-adjust-bar input[type="range"] {
-  width: 100px;
+.action-control-bar input[type="range"] {
+  width: 90px;
   accent-color: var(--accent-blue);
 }
 
@@ -255,7 +263,7 @@ body, html {
   width: 100%;
 }
 
-/* 2. Image Manager & Reorder Panel (신설) */
+/* 2. Image Manager & Reorder Panel */
 .image-manager-panel {
   display: flex;
   flex-direction: column;
@@ -299,7 +307,7 @@ body, html {
   border: 1px solid var(--glass-border);
   border-radius: 14px;
   padding: 10px 14px;
-  box-shadow: 0 4px 16px rgba(0,0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .thumb-order-badge {
@@ -380,7 +388,7 @@ body, html {
   font-size: 1.02rem;
 }
 
-/* 3. Canvas Viewport & Fit-to-screen View */
+/* 3. Canvas Viewport */
 .canvas-viewport {
   width: 100%;
   height: 100%;
@@ -555,4 +563,5 @@ canvas {
   .top-header { padding-left: 12px; padding-right: 12px; }
   .btn { padding: 8px 12px; font-size: 0.85rem; }
   .main-action-btn span { display: inline-block; font-size: 0.82rem; }
+  .action-control-bar { padding: 8px 12px; }
 }
